@@ -1,0 +1,71 @@
+let currentLevel = 1;
+    let currentXP = 0;
+    let xpToNextLevel = 100;
+
+    // Funkcja do aktualizacji informacji o wydarzeniach na stronie
+    function updateDebugInfo(message) {
+        const debugElement = document.getElementById('debug-info');
+        const timestamp = new Date().toLocaleTimeString();
+        debugElement.innerHTML = `[${timestamp}] ${message}<br>` + debugElement.innerHTML;
+        const lines = debugElement.innerHTML.split('<br>');
+        if (lines.length > 10) {
+            debugElement.innerHTML = lines.slice(0, 10).join('<br>');
+        }
+        console.log(`[${timestamp}] ${message}`); // Dodatkowo log w konsoli przeglądarki
+    }
+
+    // Aktualizacja paska postępu
+    function updateProgressBar() {
+        const progressPercentage = (currentXP / xpToNextLevel) * 100;
+        document.getElementById('progress').style.width = progressPercentage + '%';
+        document.getElementById('level-text').textContent = `Poziom: ${currentLevel}`;
+        updateDebugInfo(`Aktualizacja paska: ${progressPercentage.toFixed(2)}%`);
+    }
+
+    // Dodawanie XP na podstawie otrzymanych wydarzeń
+    function addXP(amount) {
+        currentXP += amount;
+        updateDebugInfo(`Dodano ${amount} XP. Aktualne XP: ${currentXP}`);
+        while (currentXP >= xpToNextLevel) {
+            currentLevel++;
+            currentXP -= xpToNextLevel;
+            xpToNextLevel = Math.floor(xpToNextLevel * 1.5);
+            updateDebugInfo(`Nowy poziom: ${currentLevel}. XP do następnego: ${xpToNextLevel}`);
+        }
+        updateProgressBar();
+    }
+
+    // Obsługa wydarzeń odebranych od Streamlabs
+    function handleEvent(event) {
+        updateDebugInfo(`Odebrano wydarzenie: ${JSON.stringify(event)}`);
+
+        if (event.type === 'subscriber' || event.for === 'subscriber-latest') {
+            addXP(50);  // Dodaj 50 XP za subskrypcję
+        } else if (event.type === 'cheer' || event.for === 'cheer-latest') {
+            const bits = parseInt(event.amount || event.bits || event.quantity || 0);
+            addXP(Math.floor(bits / 10));  // Dodaj 1 XP za każde 10 bitów
+        } else if (event.type === 'tip' || event.for === 'tip-latest') {
+            const amount = parseFloat(event.amount || 0);
+            addXP(Math.floor(amount * 10));  // Dodaj 10 XP za każdy dolar donacji
+        } else {
+            updateDebugInfo(`Nieznany typ wydarzenia: ${event.type || event.for}`);
+        }
+    }
+
+    // Nasłuchiwanie na wydarzenia od Streamlabs
+    window.addEventListener('onEventReceived', function (obj) {
+        updateDebugInfo('Odebrano wydarzenie od Streamlabs');
+        console.log('Odebrano wydarzenie od Streamlabs: ', obj);  // Log w konsoli przeglądarki
+
+        if (obj.detail && obj.detail.event) {
+            handleEvent(obj.detail.event);
+        } else {
+            updateDebugInfo('Nie rozpoznano formatu wydarzenia');
+        }
+    });
+
+    // Inicjalizacja widgetu po załadowaniu
+    window.addEventListener('load', () => {
+        updateDebugInfo('Widget zainicjalizowany');
+        updateProgressBar();
+    });
